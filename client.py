@@ -1,60 +1,77 @@
 import socket
 
-def generate_hamming_code(data):
-    n = len(data)
-    m = 0
-    while 2**m < n + m + 1:
-        m += 1
 
-    hamming_code = list(data) + ['0'] * m
-    for i in range(m):
-        position = 2**i - 1
-        count = 0
-        j = position
-        while j < n + m:
-            for k in range(position, min(position + 2**i, n + m)):
-                if k != position:
-                    hamming_code[position] = str(int(hamming_code[position]) ^ int(hamming_code[k]))
-                count += 1
-                if count == 2**i:
-                    j += 2**i
-                    position = j
-                    break
-    return ''.join(hamming_code)
+def h_encode(data: str) -> str:
+    bits = [int(bit) for bit in data]
+    r = 0
+    while 2 ** r < len(bits) + r + 1:
+        r += 1
+
+    result = [0] * (len(bits) + r)
+    j = 0
+    for i in range(len(result)):
+        if i + 1 == 2 ** j:
+            j += 1
+        else:
+            result[i] = bits.pop(0)
+
+    for i in range(r):
+        pos = 2 ** i - 1
+        check = 0
+        for j in range(pos, len(result), 2 * pos + 2):
+            check ^= result[j:j + pos + 1].count(1) % 2
+        result[pos] = check
+
+    return ''.join([str(bit) for bit in result])
+
+
+def string_to_binary(string):
+    binary_string = ' '.join(format(ord(char), '08b') for char in string)
+    return binary_string
+
+def combine_binary_strings(binary_string):
+    binary_list = binary_string.split()
+    combined_string = ''.join(binary_list)
+    return combined_string
+
 
 def register_user(name):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect(('127.0.0.1', 5555))
     client_socket.send(f"register:{name}".encode('utf-8'))
     response = client_socket.recv(1024).decode('utf-8')
-    if response == "Имя пользователя занято":
-        print("Ошибка: Имя пользователя уже занято. Пожалуйста, выберите другое.")
+    if response == "Username taken":
+        print("Error: Username is already taken. Please choose a different one.")
         client_socket.close()
         return None
     else:
-        print(f"Регистрация прошла успешно. Ваш id: {response}")
+        print(f"Registered successfully. Your id is: {response}")
         client_socket.close()
         return response
 
 def send_message(sender_id, receiver_name, message):
+
+    acc = string_to_binary(message)
+    acc2 = combine_binary_strings(acc)
+    encoded_message = h_encode(acc2)
+
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client_socket.connect(('127.0.0.1', 5555))
-    hamming_message = generate_hamming_code(message)
-    client_socket.send(f"send:{sender_id}:{receiver_name}:{hamming_message}".encode('utf-8'))
+    client_socket.send(f"send:{sender_id}:{receiver_name}:{encoded_message}".encode('utf-8'))
     response = client_socket.recv(1024).decode('utf-8')
-    print("Ответ сервера:", response)
+    print("Server response:", response)
     client_socket.close()
 
 if __name__ == "__main__":
-    name = input("Введите ваше имя: ")
+    name = input("Enter your name: ")
     user_id = None
     while user_id is None:
         user_id = register_user(name)
         if user_id is None:
-            name = input("Введите другое имя: ")
+            name = input("Enter a different name: ")
     while True:
-        receiver_name = input("Введите имя получателя (или 'выход' для выхода): ")
-        if receiver_name == 'выход' or receiver_name == 'выход ':
+        receiver_name = input("Enter receiver's name (or 'exit' to quit): ")
+        if receiver_name == 'exit' or receiver_name == 'exit ':
             break
-        message = input("Введите сообщение: ")
+        message = input("Enter message: ")
         send_message(user_id, receiver_name, message)
